@@ -1,44 +1,55 @@
-import { Quaternion, Vec3 } from "cannon-es";
-import { Positions } from "../../Types/common";
-import UiBlock from "./UiBlock";
-import BlockSizeManager from "./BlockSizeManager";
-import PhysicBlock from "./PhysicBlock";
-import PositionHelper from "../PositionHelper";
-import { BoxGeometry, MeshStandardMaterial } from "three";
+import { Quaternion, Vec3 } from 'cannon-es'
+import { injectable } from 'inversify'
 
+import { Positions } from '../../Types/common'
+import PhysicBlock from './PhysicBlock'
+import UiBlock from './UiBlock'
+
+@injectable()
 export default class Block {
-    private uiBlock: UiBlock;
-    private physicBlock: PhysicBlock;
-    private material = new MeshStandardMaterial();
-    private geometry = new BoxGeometry();
+  protected uiBlock: UiBlock
 
-    constructor(positionHelper: PositionHelper, blockSizeManager: BlockSizeManager, mass = 0) {
-        this.uiBlock = new UiBlock(positionHelper, blockSizeManager, this.geometry, this.material);
-        this.physicBlock = new PhysicBlock(positionHelper, blockSizeManager, mass);
-    }
+  protected physicBlock: PhysicBlock
 
-    public syncPosition() {
-        this.uiBlock.position.set(...this.convertVectorToArray(this.physicBlock.position));
-        this.uiBlock.quaternion.set(...this.convertQuaternionToArray(this.physicBlock.quaternion))
-    }
+  public syncPosition() {
+    this.uiBlock.position.set(
+      ...Block.convertVectorToArray(this.physicBlock.position),
+    )
+    this.uiBlock.quaternion.set(
+      ...Block.convertQuaternionToArray(this.physicBlock.quaternion),
+    )
+  }
 
-    public changeBlockPosition(positions: Positions) {
-        this.physicBlock.position.set(...positions);
-    }
+  public changeBlockPosition(positions: Positions) {
+    this.physicBlock.position.set(...positions)
+  }
 
-    public getUiBlock() {
-        return this.uiBlock
-    }
+  public getUiBlock() {
+    return this.uiBlock
+  }
 
-    public getPhysicBlock() {
-        return this.physicBlock
-    }
+  public setUiBlock(uiBlock: UiBlock) {
+    this.uiBlock = uiBlock
+  }
 
-    private convertVectorToArray({x,y,z}: Vec3): Positions {
-        return [x, y, z];
-    }
+  public getPhysicBlock() {
+    return this.physicBlock
+  }
 
-    private convertQuaternionToArray({x,y,z,w}: Quaternion): [x: number, y: number, z: number, w: number] {
-        return [x, y, z, w];
-    }
+  public setPhysicBlock(physicBlock: PhysicBlock) {
+    this.physicBlock = physicBlock
+  }
+
+  private static convertVectorToArray({ x, y, z }: Vec3): Positions {
+    return [x, y, z]
+  }
+
+  private static convertQuaternionToArray({
+    x,
+    y,
+    z,
+    w,
+  }: Quaternion): [x: number, y: number, z: number, w: number] {
+    return [x, y, z, w]
+  }
 }

@@ -1,80 +1,53 @@
-import { BLOCK_SPEED } from "../../Const/Common";
-import { Axis } from "../../Types/common";
-import Block from "./Block";
-import PositionHelper from "../PositionHelper";
-import BlockSizeManager from "./BlockSizeManager";
+import { inject, injectable } from 'inversify'
 
-// ToDo: this class do two things: 1 - create blocks and store them.
-// Fix this behavior
-export default class Spaghetti  {
-    private blocks: Block[];
+import { BLOCK_MASS } from '../../Const/Common'
+import { ADD_BLOCK_IN_STACK, SYNC_BLOCK_WITH_ENGINE } from '../../Const/actions'
+import TYPES from '../../Inversify/types'
+import { Factory } from '../../Types/common'
+import EventEmitter from '../../Utils/EventEmitter'
+import Block from './Block'
+import BlockPosition from './BlockPosition'
+import BlockSize from './BlockSize'
+import PhysicBlock from './PhysicBlock'
+import UiBlock from './UiBlock'
 
-    constructor(
-        // ToDo: remove from here, pass as parameters into generateNewBlock function
-        private positionHelper: PositionHelper,
-        private blockSizeManager: BlockSizeManager
-    ) {
-        this.blocks = [];
-        this.generateNewBlock = this.generateNewBlock.bind(this);
-        this.syncBlockPosition = this.syncBlockPosition.bind(this);
-        this.getLastBlock = this.getLastBlock.bind(this);
-        this.changePositionInLastBlock = this.changePositionInLastBlock.bind(this);
-        this.removeBlock = this.removeBlock.bind(this);
-    }
+@injectable()
+export default class BlockGenerator {
+  constructor(
+    @inject(TYPES.PositionHelper) private blockPosition: BlockPosition,
+    @inject(TYPES.SizeHelper) private blockSize: BlockSize,
+    @inject(TYPES.EventEmitter) private eventEmitter: EventEmitter,
+    @inject(TYPES.BlockFactory)
+    private blockFactory: Factory<Block, [UiBlock, PhysicBlock]>,
+  ) {
+    this.generateBlock = this.generateBlock.bind(this)
+    this.generateBlockPart = this.generateBlockPart.bind(this)
+  }
 
-    public generateNewBlock(mass: number) {
-        const block = new Block(this.positionHelper, this.blockSizeManager, mass);
+  public generateBlock() {
+    const position = this.blockPosition.getPosition()
+    const size = this.blockSize.getSize()
 
-        // ToDo: move from here 
-        this.addBlockInBlocks(block);
-    }
+    const uiBlock = new UiBlock(position, size)
+    const physicBlock = new PhysicBlock(position, size)
 
-    public getLastBlock(): Block {
-        return this.blocks[this.blocks.length - 1]
-    }
+    const block = this.blockFactory(uiBlock, physicBlock)
 
-    public getTwoLastBlock(): Block[] {
-        const blocks = this.getBlocks();
+    this.eventEmitter.emit(ADD_BLOCK_IN_STACK, block)
+    this.eventEmitter.emit(SYNC_BLOCK_WITH_ENGINE, block)
+  }
 
-        return blocks.slice(Math.max(blocks.length - 2, 0))
-    }
+  // ???
+  public generateBlockPart() {
+    const position = this.blockPosition.getPosition()
+    const size = this.blockSize.getSize()
 
-    public getBlocks() {
-        return this.blocks
-    }
+    const uiBlock = new UiBlock(position, size)
+    const physicBlock = new PhysicBlock(position, size, BLOCK_MASS)
 
-    public setBlocks(blocks: Block[]) {
-        this.blocks = blocks
-    }
+    const block = this.blockFactory(uiBlock, physicBlock)
 
-    public syncBlockPosition() {
-        const blocks = this.getBlocks();
-
-        blocks.forEach((block) => block.syncPosition())
-    }
-
-    public changePositionInLastBlock({ axis }: { axis: Axis }) {
-        const lastBlock = this.getLastBlock();
-
-        const physicBlock = lastBlock.getPhysicBlock();
-        physicBlock.position[axis] = physicBlock.position[axis] + BLOCK_SPEED;
-        lastBlock.syncPosition();
-    }
-
-    public removeBlock(removedBlock: Block) {
-        const blocks = this.getBlocks().filter(block => block !== removedBlock);
-
-        this.setBlocks(blocks);
-    }
-
-    private addBlockInBlocks(block: Block) {
-        this.blocks.push(block);
-    }
-
-}
-
-export class BlockGenerator {
-    public static generateBox() {
-
-    }
+    this.eventEmitter.emit(ADD_BLOCK_IN_STACK, block)
+    this.eventEmitter.emit(SYNC_BLOCK_WITH_ENGINE, block)
+  }
 }

@@ -1,34 +1,32 @@
-import { MapKey } from "../Types/common";
+import { injectable } from 'inversify'
 
+import { AnyFunction, MapKey } from '../Types/common'
+
+@injectable()
 export default class EventEmitter<Events extends MapKey = MapKey> {
-    eventMap: Map<Events, any[]>;
-    constructor() {
-        this.eventMap = new Map();
-    }
+  eventMap: Map<Events, AnyFunction[]>
 
-    private get(key: Events) {
-        return this.eventMap.get(key);
-    }
+  constructor() {
+    this.eventMap = new Map()
+  }
 
-    addListener(eventType: Events, listener: any) {
-        const callbacks = this.get(eventType) || [];
+  private get(key: Events) {
+    return this.eventMap.get(key)
+  }
 
-        this.eventMap.set(eventType, [...callbacks, listener]);
-    }
+  addListener(eventType: Events, listener: AnyFunction) {
+    const callbacks = this.get(eventType) || []
 
-    removeListener(eventType: Events, listener: any) {
-        (this.get(eventType) || []).filter((callback) => callback !== listener);
-    }
+    this.eventMap.set(eventType, [...callbacks, listener])
+  }
 
-    emit(eventType: Events, data?: any) {
-        const callbacks = this.get(eventType) || [];
+  removeListener(eventType: Events, listener: AnyFunction) {
+    ;(this.get(eventType) || []).filter((callback) => callback !== listener)
+  }
 
-        callbacks.forEach((callback) => callback(data));
-    }
+  emit(eventType: Events, ...data: any) {
+    const callbacks = this.get(eventType) || []
 
-    pipeline<T, R>(eventType: Events, data: T) {
-        const callbacks = this.get(eventType) || [];
-
-        return callbacks.reduce((res, fn) => fn(res), data) as R
-    }
+    callbacks.forEach((callback) => callback(...data))
+  }
 }

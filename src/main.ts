@@ -1,161 +1,112 @@
-import threeEngine, { camera } from './Components/Three';
-import cannonEngine from './Components/Cannon';
-import EngineManager from './Components/EngineManager';
-import PositionHelper from './Components/PositionHelper';
-import BlockSizeManager from './Components/Block/BlockSizeManager';
-import EventEmitter from './Utils/EventEmitter';
-import BlockGenerator from './Components/Block/BlockGenerator';
-import Game from './Components/Game';
-import { CREATE_BLOCK, ANIMATE_ACTIVE_BLOCK, SYNC_BLOCK_WITH_ENGINE, CHANGE_AXIS, PRERENDER, CHANGE_POSITION, SYNC_POSITION, START_GAME, FIND_INTERSECTION, UPDATE_BLOCK_SIZE, DELETE_BLOCK, UPDATE_CAMERA_POSITION } from './Const/actions';
-import { threeEngineAdapter } from './Components/Three';
-import { cannonEngineAdapter } from './Components/Cannon';
-import BoxHelper from './Utils/BoxHelper';
-import { MinMaxValues } from './Types/common';
-import UiBlock from './Components/Block/UiBlock';
-import { IntersectionHelper } from './Utils/IntersectionHelper';
-import AxisSizeMapper from './Utils/AxisSizeMapper';
-import { BLOCK_MASS, DEFAULT_AXIS_OFFSET, BLOCK_POSITION, BLOCK_SIZE } from './Const/Common';
-import Stats from './Components/Stats';
-import './style.css';
+import './style.css'
 
-const eventEmitter = new EventEmitter();
-
-// ToDo maybe pass threeEngineAdapter and cannonEngineAdapter??
-const engineManager = new EngineManager(threeEngine, cannonEngine);
-const stats = new Stats();
-const positionHelper = new PositionHelper(
-    BLOCK_POSITION.x,
-    BLOCK_POSITION.y,
-    BLOCK_POSITION.z,
-);
-const blockSizeManager = new BlockSizeManager(
-    BLOCK_SIZE.width,
-    BLOCK_SIZE.height,
-    BLOCK_SIZE.depth,
-);
-
-const blockGenerator = new BlockGenerator(positionHelper, blockSizeManager);
-
-const game = new Game(engineManager, eventEmitter, stats);
-
-eventEmitter.addListener(START_GAME, game.setIsGameStarted)
-eventEmitter.addListener(START_GAME, game.runAnimateLoop);
-eventEmitter.addListener(CREATE_BLOCK, blockGenerator.generateNewBlock);
-eventEmitter.addListener(PRERENDER, engineManager.animate);
-eventEmitter.addListener(SYNC_BLOCK_WITH_ENGINE, threeEngineAdapter.addGameBlock);
-eventEmitter.addListener(SYNC_BLOCK_WITH_ENGINE, cannonEngineAdapter.addGameBlock);
-eventEmitter.addListener(CHANGE_AXIS, game.toggleAxes);
-eventEmitter.addListener(ANIMATE_ACTIVE_BLOCK, blockGenerator.changePositionInLastBlock);
-eventEmitter.addListener(CHANGE_POSITION, positionHelper.setPosition);
-eventEmitter.addListener(UPDATE_BLOCK_SIZE, blockSizeManager.setSizes)
-eventEmitter.addListener(SYNC_POSITION, blockGenerator.syncBlockPosition)
-eventEmitter.addListener(DELETE_BLOCK, threeEngineAdapter.removeGameBlock);
-eventEmitter.addListener(DELETE_BLOCK, cannonEngineAdapter.removeGameBlock);
-eventEmitter.addListener(DELETE_BLOCK, blockGenerator.removeBlock);
-eventEmitter.addListener(UPDATE_CAMERA_POSITION, camera.updateCameraPosition)
+import BlockGenerator from './Components/Block/BlockGenerator'
+import BlockStack from './Components/Block/BlockStack'
+import { cannonEngineAdapter } from './Components/Cannon'
+import EngineManager from './Components/EngineManager'
+import Game from './Components/Game'
+import { camera, threeEngineAdapter } from './Components/Three'
+import {
+  CREATE_BLOCK,
+  ANIMATE_ACTIVE_BLOCK,
+  SYNC_BLOCK_WITH_ENGINE,
+  CHANGE_AXIS,
+  PRERENDER,
+  CHANGE_POSITION,
+  SYNC_POSITION,
+  START_GAME,
+  CHANGE_BLOCK_SIZE,
+  DELETE_BLOCK,
+  CHANGE_CAMERA_POSITION,
+  CREATE_BLOCK_PART,
+  ADD_BLOCK_IN_STACK,
+} from './Const/actions'
+import container from './Inversify/container'
+import TYPES from './Inversify/types'
+import { PositionHelper, BlockCommand, SizeHelper } from './Types/interfaces'
+import EventEmitter from './Utils/EventEmitter'
 
 /**
- * Use for pipeline
+ * Setup instances
  */
-eventEmitter.addListener(FIND_INTERSECTION, BoxHelper.wrapMeshToBox);
-eventEmitter.addListener(FIND_INTERSECTION, BoxHelper.getAxisLine);
+const blockPosition = container.get<PositionHelper>(TYPES.PositionHelper)
+const blockSize = container.get<SizeHelper>(TYPES.SizeHelper)
+const eventEmitter = container.get<EventEmitter>(TYPES.EventEmitter)
+const offsetBlockCommand = container.getNamed<BlockCommand>(
+  TYPES.BlockCommand,
+  'offsetCommand',
+)
+const stableBlockCommand = container.getNamed<BlockCommand>(
+  TYPES.BlockCommand,
+  'stableCommand',
+)
+const sliceBlockCommand = container.getNamed<BlockCommand>(
+  TYPES.BlockCommand,
+  'sliceCommand',
+)
+const engineManager = container.get<EngineManager>(TYPES.EngineManager)
+const blockGenerator = container.get<BlockGenerator>(TYPES.BlockGenerator)
+const game = container.get<Game>(TYPES.Game)
+const blocksStack = container.get<BlockStack>(TYPES.BlockStack)
 
-// ToDo: simplify
+/**
+ * Callbacks on events
+ */
+eventEmitter.addListener(START_GAME, game.setIsGameStarted)
+eventEmitter.addListener(START_GAME, game.runAnimateLoop)
+eventEmitter.addListener(CREATE_BLOCK, blockGenerator.generateBlock)
+eventEmitter.addListener(CREATE_BLOCK_PART, blockGenerator.generateBlockPart)
+eventEmitter.addListener(PRERENDER, engineManager.animate)
+eventEmitter.addListener(
+  SYNC_BLOCK_WITH_ENGINE,
+  threeEngineAdapter.addGameBlock,
+)
+eventEmitter.addListener(
+  SYNC_BLOCK_WITH_ENGINE,
+  cannonEngineAdapter.addGameBlock,
+)
+eventEmitter.addListener(CHANGE_AXIS, game.toggleAxes)
+eventEmitter.addListener(
+  ANIMATE_ACTIVE_BLOCK,
+  blocksStack.changePositionInLastBlock,
+)
+eventEmitter.addListener(CHANGE_POSITION, blockPosition.setPosition)
+eventEmitter.addListener(CHANGE_BLOCK_SIZE, blockSize.setSize)
+eventEmitter.addListener(SYNC_POSITION, blocksStack.syncBlockPosition)
+eventEmitter.addListener(DELETE_BLOCK, threeEngineAdapter.removeGameBlock)
+eventEmitter.addListener(DELETE_BLOCK, cannonEngineAdapter.removeGameBlock)
+eventEmitter.addListener(DELETE_BLOCK, blocksStack.removeBlock)
+eventEmitter.addListener(CHANGE_CAMERA_POSITION, camera.updateCameraPosition)
+eventEmitter.addListener(ADD_BLOCK_IN_STACK, blocksStack.addBlock)
+
 window.addEventListener('DOMContentLoaded', () => {
-    eventEmitter.emit(CREATE_BLOCK);
-
-    const block = blockGenerator.getLastBlock();
-
-    eventEmitter.emit(SYNC_BLOCK_WITH_ENGINE, block);
-    eventEmitter.emit(PRERENDER);
+  eventEmitter.emit(CREATE_BLOCK)
+  eventEmitter.emit(PRERENDER)
 })
 
 window.addEventListener('click', () => {
-    const isGameStarted = game.getIsGameStarted();
-    const axis = game.getAxis();
+  const isGameStarted = game.getIsGameStarted()
+  const axis = game.getAxis()
 
-    if (isGameStarted) {
-        const [stableBlock, activeBlock] = blockGenerator.getTwoLastBlock();
+  if (isGameStarted) {
+    const [stableBlock, activeBlock] = blocksStack.getLastBlocks(2)
+    const stableUiBlock = stableBlock.getUiBlock()
+    const activeUiBlock = activeBlock.getUiBlock()
 
-        /**
-         * Delete Animate block
-         */
-        eventEmitter.emit(DELETE_BLOCK, activeBlock);
+    eventEmitter.emit(DELETE_BLOCK, activeBlock)
 
-        // ToDo Make OBSERVER!!!!!!!!!
-        // ToDo Simplify
-        // Find axis line stable block and active block
-        const { [axis]: line1 } = eventEmitter.pipeline<UiBlock, MinMaxValues>(FIND_INTERSECTION, stableBlock.getUiBlock());
-        const { [axis]: line2 } = eventEmitter.pipeline<UiBlock, MinMaxValues>(FIND_INTERSECTION, activeBlock.getUiBlock());
-        const {x, y, z} = positionHelper.getPosition();
-        const sizeUnit = AxisSizeMapper.axisToSize(axis);
+    sliceBlockCommand.execute(axis, stableUiBlock, activeUiBlock)
+    eventEmitter.emit(CREATE_BLOCK_PART)
 
-        /**
-         * Generate Slice Block
-         */
+    stableBlockCommand.execute(axis, stableUiBlock, activeUiBlock)
+    eventEmitter.emit(CREATE_BLOCK)
+  }
 
-        const { size: si, start: st } = IntersectionHelper.getLineDifference(line1, line2);
+  eventEmitter.emit(CHANGE_AXIS)
 
-        const pos = { y, x, z, [axis]: st };
+  offsetBlockCommand.execute(game.getAxis())
+  eventEmitter.emit(CREATE_BLOCK)
+  eventEmitter.emit(CHANGE_CAMERA_POSITION)
 
-        const bs = { ...blockSizeManager.getSizes(), [sizeUnit]: si };
-        eventEmitter.emit(CHANGE_POSITION, pos);
-        eventEmitter.emit(UPDATE_BLOCK_SIZE, bs);
-        eventEmitter.emit(CREATE_BLOCK, BLOCK_MASS);
-
-        const gb = blockGenerator.getLastBlock();
-
-        eventEmitter.emit(SYNC_BLOCK_WITH_ENGINE, gb);
-
-
-        /**
-         * Generate Stable Block
-         */
-
-
-        //ToDo redo
-        const { size, start } = IntersectionHelper.getLineIntersection(line1, line2);
-
-        const position = { y, x, z, [axis]: start };
-
-        const blockSize = { ...blockSizeManager.getSizes(), [sizeUnit]: size };
-        eventEmitter.emit(CHANGE_POSITION, position);
-        eventEmitter.emit(UPDATE_BLOCK_SIZE, blockSize);
-        eventEmitter.emit(CREATE_BLOCK);
-
-        const block = blockGenerator.getLastBlock();
-
-        eventEmitter.emit(SYNC_BLOCK_WITH_ENGINE, block);
-    }
-})
-
-window.addEventListener('click', () => {
-    eventEmitter.emit(CHANGE_AXIS);
-})
-
-window.addEventListener('click', () => {
-    const axis = game.getAxis();
-    const {x, y, z} = positionHelper.getPosition()
-    const position = { x, y: y + 1, z, [axis]: DEFAULT_AXIS_OFFSET }
-
-    eventEmitter.emit(CHANGE_POSITION, position);
-    eventEmitter.emit(CREATE_BLOCK);
-
-    const block = blockGenerator.getLastBlock();
-
-    eventEmitter.emit(SYNC_BLOCK_WITH_ENGINE, block);
-})
-
-window.addEventListener('click', () => {
-    eventEmitter.emit(UPDATE_CAMERA_POSITION);
-})
-
-
-window.addEventListener('click', () => {
-    const isGameStarted = game.getIsGameStarted();
-
-    // first click
-    if (!isGameStarted) {
-        eventEmitter.emit(START_GAME, true);
-    }
+  if (!isGameStarted) eventEmitter.emit(START_GAME, true)
 })

@@ -1,58 +1,61 @@
-import { ANIMATE_ACTIVE_BLOCK, SYNC_POSITION } from "../Const/actions";
-import EventEmitter from "../Utils/EventEmitter";
-import EngineManager from "./EngineManager";
-import Stats from 'stats.js';
-import { Axis } from "../Types/common";
+import { inject, injectable } from 'inversify'
 
-// Seems like god object
+import { ANIMATE_ACTIVE_BLOCK, SYNC_POSITION } from '../Const/actions'
+import TYPES from '../Inversify/types'
+import { Axis } from '../Types/common'
+import EventEmitter from '../Utils/EventEmitter'
+import EngineManager from './EngineManager'
+import Stats from './Stats'
+
+@injectable()
 export default class Game {
-    private axis: Axis;
-    // ToDo Maybe delete this property
-    private isGameStarted = false;
+  private axis: Axis
 
-    constructor(
-        private engineManager: EngineManager,
-        private eventEmitter: EventEmitter,
-        private stats: Stats
-    ) {
-        this.axis = 'x'
-        this.toggleAxes = this.toggleAxes.bind(this);
-        this.runAnimateLoop = this.runAnimateLoop.bind(this);
-        this.setIsGameStarted = this.setIsGameStarted.bind(this);
-        this.getIsGameStarted = this.getIsGameStarted.bind(this);
-    }
+  private isGameStarted = false
 
-    public runAnimateLoop() {
-        this.stats.begin()
-        const axis = this.getAxis();
+  constructor(
+    @inject(TYPES.EngineManager) private engineManager: EngineManager,
+    @inject(TYPES.EventEmitter) private eventEmitter: EventEmitter,
+    @inject(TYPES.Stats) private stats: Stats,
+  ) {
+    this.axis = 'x'
+    this.toggleAxes = this.toggleAxes.bind(this)
+    this.runAnimateLoop = this.runAnimateLoop.bind(this)
+    this.setIsGameStarted = this.setIsGameStarted.bind(this)
+    this.getIsGameStarted = this.getIsGameStarted.bind(this)
+  }
 
-        this.engineManager.animate();
+  public runAnimateLoop() {
+    this.stats.begin()
+    const axis = this.getAxis()
 
-        this.eventEmitter.emit(SYNC_POSITION);
+    this.engineManager.animate()
 
-        this.eventEmitter.emit(ANIMATE_ACTIVE_BLOCK, { axis });
+    this.eventEmitter.emit(SYNC_POSITION)
 
-        this.stats.end();
-        requestAnimationFrame(this.runAnimateLoop);
-    }
+    this.eventEmitter.emit(ANIMATE_ACTIVE_BLOCK, { axis })
 
-    public getIsGameStarted() {
-        return this.isGameStarted;
-    }
+    this.stats.end()
+    requestAnimationFrame(this.runAnimateLoop)
+  }
 
-    public setIsGameStarted(isGameStarted: boolean) {
-        this.isGameStarted = isGameStarted;
-    }
+  public getIsGameStarted() {
+    return this.isGameStarted
+  }
 
-    public getAxis() {
-        return this.axis;
-    }
+  public setIsGameStarted(isGameStarted: boolean) {
+    this.isGameStarted = isGameStarted
+  }
 
-    public setAxis(axes: Axis) {
-        this.axis = axes;
-    }
+  public getAxis() {
+    return this.axis
+  }
 
-    public toggleAxes() {
-        this.axis = this.axis === 'x' ? 'z' : 'x'
-    }
+  public setAxis(axes: Axis) {
+    this.axis = axes
+  }
+
+  public toggleAxes() {
+    this.axis = this.axis === 'x' ? 'z' : 'x'
+  }
 }
